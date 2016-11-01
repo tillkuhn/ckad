@@ -1,0 +1,7 @@
+## config for {{ etchost }}
+127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+
+172.31.98.182 centos-master
+172.31.97.69 centos-minion1
+172.31.29.59 centos-minion2

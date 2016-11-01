@@ -1,0 +1,6 @@
+keys/id_rsa
+keys/id_rsa.pub
+keys/default_host_prefix
+*.log
+*.retry
+login

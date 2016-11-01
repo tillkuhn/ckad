@@ -1,0 +1,114 @@
+---
+- name: local
+  hosts: localhost
+  #make sure you have the following visudo config (only for training environments)
+  #user    ALL=(ALL)       NOPASSWD: ALL
+  tasks:
+  - set_fact:
+      default_user: "user"
+      default_key: "keys/id_rsa"
+      default_host_prefix: "{{ lookup('file', 'keys/default_host_prefix') }}"
+      
+  - add_host: name="{{default_host_prefix}}1.mylabserver.com" groups="master-servers"  ansible_ssh_user="{{default_user}}" ansible_ssh_private_key_file="{{default_key}}" etchost="centos-master"
+  - add_host: name="{{default_host_prefix}}2.mylabserver.com" groups="minion-servers"  ansible_ssh_user="{{default_user}}" ansible_ssh_private_key_file="{{default_key}}" etchost="centos-minion1"
+  - add_host: name="{{default_host_prefix}}3.mylabserver.com" groups="minion-servers"  ansible_ssh_user="{{default_user}}" ansible_ssh_private_key_file="{{default_key}}" etchost="centos-minion2"
+
+############## SETUP MINIONS #################
+- name: setup kubernetes minions
+  hosts: minion-servers
+  become: yes
+  tasks:
+    
+  - debug: msg="{{ etchost }}"
+  - name: install ntpd
+    yum: name=ntp state=latest
+    
+  - name: enable ntpd
+    command: systemctl enable ntpd
+  
+  - name: start ntpd
+    command: systemctl start ntpd
+
+  - name: add master/minions to etc/hosts
+    template: src=hosts dest=/etc/hosts
+    
+  - name: add virt7-docker-common-release repo
+    copy: src=virt7-docker-common-release.repo dest=/etc/yum.repos.d/virt7-docker-common-release.repo
+    
+  - name: install etcd
+    yum: name=etcd state=latest
+    
+  - name: install kubernets
+    yum: name=kubernetes state=latest enablerepo=virt7-docker-common-release   
+    
+  - name: install docker
+    yum: name=docker state=latest enablerepo=virt7-docker-common-release       
+    
+  - name: modify kubernetes config
+    copy: src=config dest=/etc/kubernetes/config
+
+  - name: modify kubernetes apiserver config
+    template: src=kubelet dest=/etc/kubernetes/kubelet
+
+  - name: enable kubernetes services
+    command: systemctl enable kube-proxy kubelet docker
+
+  - name: start kubernetes services
+    command: systemctl start kube-proxy kubelet docker
+
+   
+
+############## SETUP MASTER  #################
+    
+- name: setup kubernetes master
+  hosts: master-servers
+  become: yes
+  tasks:
+    
+  - name: install ntpd
+    yum: name=ntp state=latest
+    
+  - name: enable ntpd
+    command: systemctl enable ntpd
+  
+  - name: start ntpd
+    command: systemctl start ntpd
+
+  - name: add virt7-docker-common-release repo
+    copy: src=virt7-docker-common-release.repo dest=/etc/yum.repos.d/virt7-docker-common-release.repo
+    
+  - name: install etcd
+    yum: name=etcd state=latest
+    
+  - name: install kubernets
+    yum: name=kubernetes state=latest enablerepo=virt7-docker-common-release   
+    
+  - name: install docker
+    yum: name=docker state=latest enablerepo=virt7-docker-common-release       
+    
+ ## http://stackoverflow.com/questions/31891734/not-able-to-create-pod-in-kubernetes
+  - name: copy serviceaccount.key
+    copy: src=serviceaccount.key dest=/etc/kubernetes/serviceaccount.key
+  
+  - name: modify kubernetes config
+    copy: src=config dest=/etc/kubernetes/config
+
+  - name: modify kubernetes apiserver config
+    copy: src=apiserver dest=/etc/kubernetes/apiserver
+
+  - name: modify kubernetes controller manager config
+    copy: src=apiserver dest=/etc/kubernetes/controller-manager
+    
+  - name: modify etcd config
+    copy: src=etcd.conf dest=/etc/etcd/etcd.conf 
+
+  - name: add master/minions to etc/hosts
+    template: src=hosts dest=/etc/hosts
+    
+  - name: enable kubernetes services
+    command: systemctl enable etcd kube-apiserver kube-controller-manager kube-scheduler
+
+  - name: start kubernetes services
+    command: systemctl start etcd kube-apiserver kube-controller-manager kube-scheduler
+    
+    
