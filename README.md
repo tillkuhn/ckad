@@ -1,5 +1,5 @@
- Training Project for Running Container Clusters with Kubernetes
- ===================================================================
+Training Project for Running Container Clusters with Kubernetes
+===================================================================
 
 ## Description
 
