@@ -15,3 +15,7 @@ Ansible playbook to sets up a Kubernetes Cluster with 1 Master and 2 Minions on 
  I1101 08:07:29.654079    6154 portforward.go:247] Handling connection for 35046
  <title>Welcome to nginx!</title>
  <h1>Welcome to nginx!</h1>
+
+## CKAD Resources
+
+* [Practice Exam for Certified Kubernetes Application Developer (CKAD) Certification](https://matthewpalmer.net/kubernetes-app-developer/articles/ckad-practice-exam.html)
