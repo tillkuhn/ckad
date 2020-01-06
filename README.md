@@ -20,3 +20,4 @@ Ansible playbook to sets up a Kubernetes Cluster with 1 Master and 2 Minions on 
 
 * [Practice Exam for Certified Kubernetes Application Developer (CKAD) Certification](https://matthewpalmer.net/kubernetes-app-developer/articles/ckad-practice-exam.html)
 * [ckad-prep-notes](https://github.com/twajr/ckad-prep-notes)
+* [ckad-tips](https://pnguyen.io/posts/ckad-tips/)
