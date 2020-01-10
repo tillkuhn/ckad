@@ -4,3 +4,4 @@ keys/default_host_prefix
 *.log
 *.retry
 login
+install

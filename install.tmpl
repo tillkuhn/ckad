@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+## master ssh cloud_user@35.178.37.143   cloud_user
+## node ssh cloud_user@35.176.51.223
+if [  $# -lt 1 ]; then
+  echo "Usage: $0 [master|node]"
+  exit 1
+fi
+
+echo "Ensure Docker Release (CE deb) key is trusted (use apt-key list to check)"
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+
+echo "Adding docker apt repo for $(lsb_release -cs) stable" 
+sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+
+echo "Ensure Google Cloud Packages Automatic Signing Key is trusted (use apt-key list to check)"
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+
+echo "Create or overwrite /etc/apt/sources.list.d/kubernetes.list"
+cat << EOF | sudo tee /etc/apt/sources.list.d/kubernetes.list
+deb https://apt.kubernetes.io/ kubernetes-xenial main
+EOF
+
+#####
+
+KUBEVERSION=1.13.12
+DOCKERVERSION=18.06.3
+echo "Installing Kubernetes $KUBEVERSION and docker $DOCKERVERSION (use apt-cache madison docker-ce kubelet to check available versions)"
+## may have to use --allow-change-held-packages on retry ...
+sudo apt-get install -y docker-ce=$DOCKERVERSION~ce~3-0~ubuntu kubelet=$KUBEVERSION-00 kubeadm=$KUBEVERSION-00 kubectl=$KUBEVERSION-00
+
+echo "Mark kubenertes and docker packages as held back" 
+sudo apt-mark hold docker-ce kubelet kubeadm kubectl
+
+if grep -q  "net.bridge.bridge-nf-call-iptables=1"  /etc/sysctl.conf; then
+  echo iptables bridge call already enabled
+else
+  echo enabling iptables bridge call
+  echo "net.bridge.bridge-nf-call-iptables=1" | sudo tee -a /etc/sysctl.conf
+  sudo sysctl -p
+fi
+
+## On the Kube master server
+if [ "$1" = "master" ]; then
+    echo "Init Kubernetes Master node for network 10.244.0.0 - 10.244.255.255"
+    sudo kubeadm init --pod-network-cidr=10.244.0.0/16
+    ## set local kubeadm
+    
+    echo "Setup  $HOME/.kube/config kube admin config"
+    mkdir -p $HOME/.kube
+    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+    sudo chown $(id -u):$(id -g) $HOME/.kube/config
+    
+    echo "Install Flannel networking:"
+    kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/bc79dd1505b0c8681ece4de4c0d86c5cd2643275/Documentation/kube-flannel.yml
+    #Note: If you are using Kubernetes 1.16 or later, you will need to use a newer flannel installation yaml instead:
+    # kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/3f7d3e6c24f641e7ff557ebcea1136fdf4b1b6a1/Documentation/kube-flannel.yml
+fi   
+
+if [ "$1" = "node" ]; then
+    token=sdfgfsfsdfsdfsdfsdfsdfsdfsdfs
+    certhash=sha256:6f97c7sdfsfsdfsdfsdfsdfsdfsdfsdfsdfsfsfsfsfsdfsdfsdfsfsdfsdfsdfsdfsdfs
+    address=1.2.3.4:6443 
+    kubeadm join $address --token $token --discovery-token-ca-cert-hash $certhash
+fi
+
+
+
+############################
+# master install logs
+################################
+#  I0109 17:42:28.487359   21820 version.go:237] remote version is much newer: v1.17.0; falling back to: stable-1.13
+# [init] Using Kubernetes version: v1.13.12
+# [preflight] Running pre-flight checks
+# [preflight] Pulling images required for setting up a Kubernetes cluster
+# [preflight] This might take a minute or two, depending on the speed of your internet connection
+# [preflight] You can also perform this action in beforehand using 'kubeadm config images pull'
+# [kubelet-start] Writing kubelet environment file with flags to file "/var/lib/kubelet/kubeadm-flags.env"
+# [kubelet-start] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
+# [kubelet-start] Activating the kubelet service
+# [certs] Using certificateDir folder "/etc/kubernetes/pki"
+# [certs] Generating "front-proxy-ca" certificate and key
+# [certs] Generating "front-proxy-client" certificate and key
+# [certs] Generating "etcd/ca" certificate and key
+# [certs] Generating "etcd/server" certificate and key
+# [certs] etcd/server serving cert is signed for DNS names [tillkuhn1c.mylabserver.com localhost] and IPs [172.31.20.252 127.0.0.1 ::1]
+# [certs] Generating "etcd/peer" certificate and key
+# [certs] etcd/peer serving cert is signed for DNS names [tillkuhn1c.mylabserver.com localhost] and IPs [172.31.20.252 127.0.0.1 ::1]
+# [certs] Generating "etcd/healthcheck-client" certificate and key
+# [certs] Generating "apiserver-etcd-client" certificate and key
+# [certs] Generating "ca" certificate and key
+# [certs] Generating "apiserver-kubelet-client" certificate and key
+# [certs] Generating "apiserver" certificate and key
+# [certs] apiserver serving cert is signed for DNS names [tillkuhn1c.mylabserver.com kubernetes kubernetes.default kubernetes.default.svc kubernetes.default.svc.cluster.local] and IPs [10.96.0.1 172.31.20.252]
+# [certs] Generating "sa" key and public key
+# [kubeconfig] Using kubeconfig folder "/etc/kubernetes"
+# [kubeconfig] Writing "admin.conf" kubeconfig file
+# [kubeconfig] Writing "kubelet.conf" kubeconfig file
+# [kubeconfig] Writing "controller-manager.conf" kubeconfig file
+# [kubeconfig] Writing "scheduler.conf" kubeconfig file
+# [control-plane] Using manifest folder "/etc/kubernetes/manifests"
+# [control-plane] Creating static Pod manifest for "kube-apiserver"
+# [control-plane] Creating static Pod manifest for "kube-controller-manager"
+# [control-plane] Creating static Pod manifest for "kube-scheduler"
+# [etcd] Creating static Pod manifest for local etcd in "/etc/kubernetes/manifests"
+# [wait-control-plane] Waiting for the kubelet to boot up the control plane as static Pods from directory "/etc/kubernetes/manifests". This can take up to 4m0s
+# apiclient] All control plane components are healthy after 24.502002 seconds
+# [uploadconfig] storing the configuration used in ConfigMap "kubeadm-config" in the "kube-system" Namespace
+# [kubelet] Creating a ConfigMap "kubelet-config-1.13" in namespace kube-system with the configuration for the kubelets in the cluster
+# [patchnode] Uploading the CRI Socket information "/var/run/dockershim.sock" to the Node API object "tillkuhn1c.mylabserver.com" as an annotation
+# [mark-control-plane] Marking the node tillkuhn1c.mylabserver.com as control-plane by adding the label "node-role.kubernetes.io/master=''"
+# [mark-control-plane] Marking the node tillkuhn1c.mylabserver.com as control-plane by adding the taints [node-role.kubernetes.io/master:NoSchedule]
+# [bootstrap-token] Using token: *********************
+# [bootstrap-token] Configuring bootstrap tokens, cluster-info ConfigMap, RBAC Roles
+# [bootstraptoken] configured RBAC rules to allow Node Bootstrap tokens to post CSRs in order for nodes to get long term certificate credentials
+# [bootstraptoken] configured RBAC rules to allow the csrapprover controller automatically approve CSRs from a Node Bootstrap Token
+# [bootstraptoken] configured RBAC rules to allow certificate rotation for all node client certificates in the cluster
+# [bootstraptoken] creating the "cluster-info" ConfigMap in the "kube-public" namespace
+# [addons] Applied essential addon: CoreDNS
+# [addons] Applied essential addon: kube-proxy
+
+# Your Kubernetes master has initialized successfully!
+
+# To start using your cluster, you need to run the following as a regular user:
+
+#   mkdir -p $HOME/.kube
+#   sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+#   sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+# You should now deploy a pod network to the cluster.
+# Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
+#   https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+# You can now join any number of machines by running the following on each node
+# as root:
+
+
