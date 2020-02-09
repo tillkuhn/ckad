@@ -5,3 +5,4 @@ keys/default_host_prefix
 *.retry
 login
 install
+.idea/
